@@ -1,3 +1,4 @@
+
 use reqwest::{header::AUTHORIZATION, Client, Method, RequestBuilder};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::Mutex;
@@ -9,8 +10,9 @@ pub mod embeddings;
 pub mod models;
 pub mod moderations;
 
-const BASE_URL: &str = "https://api.openai.com/v1/";
+// const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1/";
 
+static BASE_URL: Mutex<String> = Mutex::new(String::new());
 static API_KEY: Mutex<String> = Mutex::new(String::new());
 
 #[derive(Deserialize, Debug, Clone)]
@@ -46,16 +48,22 @@ pub struct Usage {
 
 type ApiResponseOrError<T> = Result<Result<T, OpenAiError>, reqwest::Error>;
 
+pub fn openai_use_base_url(new_url: &str) {
+    *BASE_URL.lock().unwrap() = new_url.to_string();
+}
+
 async fn openai_request<F, T>(method: Method, route: &str, builder: F) -> ApiResponseOrError<T>
 where
     F: FnOnce(RequestBuilder) -> RequestBuilder,
     T: DeserializeOwned,
 {
     let client = Client::new();
-    let mut request = client.request(method, BASE_URL.to_owned() + route);
+    let mut request = client.request(
+        method,
+        BASE_URL.lock().unwrap().to_owned() + route,
+    );
 
     request = builder(request);
-
     let api_response: ApiResponse<T> = request
         .header(AUTHORIZATION, format!("Bearer {}", API_KEY.lock().unwrap()))
         .send()
